@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KidsCloud AI — Family Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
+
+        :root {
+            --bg: #0d0e1a;
+            --card: #13152a;
+            --border: rgba(100, 120, 255, 0.12);
+            --accent: #5b6aff;
+            --accent2: #a259ff;
+            --green: #22d3a5;
+            --danger: #ff4f6b;
+            --text: #e8eaf6;
+            --muted: #6b7280;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background mesh */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 60% 40% at 20% 10%, rgba(91,106,255,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 30% at 80% 80%, rgba(162,89,255,0.1) 0%, transparent 55%),
+                radial-gradient(ellipse 40% 50% at 60% 30%, rgba(34,211,165,0.06) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .mono { font-family: 'Space Mono', monospace; }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(91,106,255,0.5), transparent);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background: rgba(13,14,26,0.98);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 24px 16px;
+            gap: 6px;
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--muted);
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+        }
+        .nav-btn:hover { background: rgba(91,106,255,0.1); color: var(--text); }
+        .nav-btn.active { background: linear-gradient(135deg, rgba(91,106,255,0.25), rgba(162,89,255,0.15)); color: #fff; border: 1px solid rgba(91,106,255,0.3); }
+        .nav-btn .icon-wrap {
+            width: 32px; height: 32px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.05);
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .nav-btn.active .icon-wrap { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+
+        /* Top bar */
+        .topbar {
+            height: 64px;
+            background: rgba(13,14,26,0.95);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: blur(20px);
+        }
+
+        /* Status badge */
+        .badge-online {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 100px;
+            background: rgba(34,211,165,0.12);
+            border: 1px solid rgba(34,211,165,0.25);
+            color: var(--green);
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
+        .badge-online::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* File rows */
+        .file-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            transition: background 0.15s;
+            cursor: default;
+        }
+        .file-row:hover { background: rgba(91,106,255,0.04); }
+        .file-row:last-child { border-bottom: none; }
+
+        .file-icon {
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .file-icon.folder { background: rgba(251,191,36,0.12); color: #fbbf24; }
+        .file-icon.folder.special { background: rgba(91,106,255,0.15); color: var(--accent); animation: glow-icon 2s ease-in-out infinite; }
+        .file-icon.file { background: rgba(107,114,128,0.12); color: var(--muted); }
+        .file-icon.log { background: rgba(34,211,165,0.1); color: var(--green); }
+        .file-icon.code { background: rgba(162,89,255,0.12); color: var(--accent2); }
+
+        @keyframes glow-icon {
+            0%, 100% { box-shadow: 0 0 0px rgba(91,106,255,0.4); }
+            50% { box-shadow: 0 0 16px rgba(91,106,255,0.5); }
+        }
+
+        /* Delete btn */
+        .del-btn {
+            width: 34px; height: 34px;
+            border-radius: 10px;
+            background: rgba(255,79,107,0.1);
+            border: 1px solid rgba(255,79,107,0.2);
+            color: var(--danger);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+        .del-btn:hover { background: rgba(255,79,107,0.25); transform: scale(1.05); }
+
+        /* Loader */
+        .ring-loader {
+            width: 100px; height: 100px;
+            border: 3px solid rgba(91,106,255,0.1);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1.2s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Code log */
+        .code-log {
+            background: #0a0b14;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: #7dd3fc;
+            max-height: 320px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .code-log .line-num { color: rgba(255,255,255,0.18); margin-right: 12px; user-select: none; }
+        .code-log .kw { color: #a78bfa; }
+        .code-log .str { color: #86efac; }
+        .code-log .fn { color: #fde68a; }
+        .code-log .cm { color: rgba(255,255,255,0.25); }
+        .code-log .new-line { animation: fadeInLine 0.4s ease forwards; opacity: 0; }
+        @keyframes fadeInLine { to { opacity: 1; } }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .modal-box {
+            background: #13152a;
+            border: 1px solid rgba(255,79,107,0.3);
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 340px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Stats row */
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+        /* Path breadcrumb */
+        .breadcrumb {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; font-weight: 800;
+            color: var(--muted);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-family: 'Space Mono', monospace;
+        }
+        .breadcrumb .sep { color: rgba(255,255,255,0.15); }
+        .breadcrumb .current { color: var(--accent); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(91,106,255,0.3); border-radius: 99px; }
+
+        /* Family icon row in header */
+        .family-icons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .family-avatar {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px;
+        }
+
+        /* Mobile nav */
+        @media (max-width: 768px) {
+            .sidebar {
+                top: auto; bottom: 0; left: 0; right: 0;
+                width: 100%; height: 66px;
+                flex-direction: row;
+                padding: 0 8px;
+                border-right: none;
+                border-top: 1px solid var(--border);
+                gap: 0;
+            }
+            .nav-btn { flex: 1; flex-direction: column; gap: 4px; padding: 8px; font-size: 9px; justify-content: center; align-items: center; }
+            .nav-btn .icon-wrap { width: 28px; height: 28px; }
+            .sidebar-logo { display: none; }
+            .sidebar-divider { display: none; }
+            .main-wrap { margin-left: 0 !important; padding-bottom: 80px; }
+        }
+
+        .sidebar-logo {
+            padding: 8px 16px 20px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .logo-mark {
+            width: 36px; height: 36px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 4px 20px rgba(91,106,255,0.35);
+        }
+        .sidebar-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 12px 0;
+        }
+
+        .deploy-bar { height: 3px; border-radius: 99px; background: rgba(255,255,255,0.05); overflow: hidden; }
+        .deploy-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0; transition: width 0.6s; box-shadow: 0 0 10px rgba(91,106,255,0.5); }
+
+        /* Reset screen */
+        #reset-screen { background: var(--bg); z-index: 10000; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px 12px;
+        }
+        .section-title { font-size: 16px; font-weight: 900; }
+    </style>
+</head>
+<body>
+
+<!-- DEPLOY / LOADING SCREEN -->
+<section id="reset-screen" class="fixed inset-0 flex flex-col items-center justify-center p-8 text-center" style="display:flex!important;">
+    <div class="relative mb-8">
+        <div class="ring-loader"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+            <span style="font-size:32px;">👨‍👩‍👧‍👦</span>
+        </div>
+    </div>
+    <h2 class="text-xl font-black mb-1 tracking-tight">KidsCloud AI</h2>
+    <p class="text-xs text-gray-500 mb-6 font-bold mono">INITIALIZING ENVIRONMENT</p>
+    <div class="w-full max-w-[280px] deploy-bar mb-3">
+        <div id="reset-bar" class="deploy-fill"></div>
+    </div>
+    <div class="flex justify-between w-full max-w-[280px] mono text-[10px] text-gray-600 font-bold">
+        <span id="reset-status">Mounting volumes...</span>
+        <span id="reset-percent">0%</span>
+    </div>
+</section>
+
+<!-- MAIN DASHBOARD (hidden until boot) -->
+<section id="dashboard-screen" class="hidden flex" style="min-height:100vh;">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-mark">👨‍👩‍👧‍👦</div>
+            <div>
+                <p class="font-black text-sm leading-tight text-white">KidsCloud</p>
+                <p class="text-[9px] font-bold mono" style="color:var(--accent)">AI CONSOLE</p>
+            </div>
+        </div>
+        <div class="sidebar-divider"></div>
+        <button onclick="navigateTo('root')" id="btn-root" class="nav-btn active">
+            <div class="icon-wrap"><i class="fas fa-database"></i></div>
+            <span>Files</span>
+        </button>
+        <button onclick="navigateTo('catch')" id="btn-catch" class="nav-btn">
+            <div class="icon-wrap"><i class="fas fa-bolt"></i></div>
+            <span>Cache</span>
+        </button>
+        <button onclick="showView('logs')" id="btn-logs" class="nav-btn">
+            <div class="icon-wrap"><i class="fas fa-code"></i></div>
+            <span>AI Log</span>
+        </button>
+        <div class="sidebar-divider"></div>
+        <div style="padding:12px 16px;margin-top:auto;">
+            <div class="badge-online">SYSTEM ONLINE</div>
+            <p class="text-[9px] mono text-gray-600 mt-2 font-bold" id="node-label">NODE-01</p>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="main-wrap flex-1" style="margin-left:240px; display:flex; flex-direction:column;">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div>
+                <p class="font-black text-sm" id="view-title">File Explorer</p>
+                <div class="breadcrumb mt-0.5">
+                    <span>/ cloud /</span>
+                    <span class="sep">›</span>
+                    <span class="current" id="path-label">root</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="family-icons">
+                    <div class="family-avatar" style="background:rgba(251,191,36,0.15);">👨</div>
+                    <div class="family-avatar" style="background:rgba(162,89,255,0.15);">👩</div>
+                    <div class="family-avatar" style="background:rgba(34,211,165,0.15);">👧</div>
+                    <div class="family-avatar" style="background:rgba(91,106,255,0.15);">👦</div>
+                </div>
+                <button onclick="triggerUpload()" style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(91,106,255,0.4);">
+                    <i class="fas fa-plus" style="font-size:13px;"></i>
+                </button>
+                <button onclick="location.reload()" style="width:38px;height:38px;border-radius:12px;background:rgba(255,79,107,0.1);border:1px solid rgba(255,79,107,0.2);color:var(--danger);cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-power-off" style="font-size:13px;"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Row -->
+        <div style="padding:20px 24px 0; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; position:relative; z-index:1;">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-files">--</div>
+                <div class="stat-label">Total Files</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-cache">--</div>
+                <div class="stat-label">Cache Items</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-lines">--</div>
+                <div class="stat-label">AI Lines</div>
+            </div>
+        </div>
+
+        <!-- Views -->
+        <div style="padding:16px 24px; flex:1; position:relative; z-index:1;">
+
+            <!-- Explorer View -->
+            <div id="view-explorer">
+                <div class="section-header" style="padding:12px 0 12px;">
+                    <div class="flex items-center gap-3">
+                        <button id="back-btn" onclick="goBack()" style="display:none;font-size:11px;font-weight:800;color:var(--accent);background:rgba(91,106,255,0.1);border:1px solid rgba(91,106,255,0.2);border-radius:10px;padding:6px 12px;cursor:pointer;font-family:'Nunito',sans-serif;">← BACK</button>
+                        <span class="section-title" id="explorer-title">Root</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div style="display:grid;grid-template-columns:1fr auto;padding:12px 20px;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border);">
+                        <span style="font-size:9px;font-weight:800;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;font-family:'Space Mono',monospace;">Identifier</span>
+                        <span style="font-size:9px;font-weight:800;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;font-family:'Space Mono',monospace;">Action</span>
+                    </div>
+                    <div id="explorer-grid"></div>
+                </div>
+            </div>
+
+            <!-- AI Log View -->
+            <div id="view-logs" style="display:none;">
+                <div class="section-header" style="padding:12px 0 16px;">
+                    <span class="section-title">🤖 AI Code Log</span>
+                    <span class="badge-online" style="font-size:9px;">AUTO-WRITING</span>
+                </div>
+                <div class="code-log" id="code-log-area"></div>
+                <p style="margin-top:10px;font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;font-weight:700;">← 30 lines appended every hour automatically</p>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- FILE INPUT -->
+<input type="file" id="file-picker" style="display:none;" onchange="uploadToCloud(event)">
+
+<!-- DELETE MODAL -->
+<div id="delete-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+        <div style="width:56px;height:56px;border-radius:16px;background:rgba(255,79,107,0.15);border:1px solid rgba(255,79,107,0.3);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:24px;">🗑️</div>
+        <h3 style="font-size:17px;font-weight:900;margin-bottom:8px;">Delete File?</h3>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:24px;line-height:1.6;">This action is permanent and cannot be undone.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <button id="confirm-delete" style="width:100%;padding:14px;border-radius:14px;background:var(--danger);border:none;color:white;font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;cursor:pointer;">YES, DELETE</button>
+            <button onclick="closeDeleteModal()" style="width:100%;padding:14px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:var(--muted);font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">CANCEL</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Firebase config
+const firebaseConfig = {
+    apiKey: "AIzaSyCyLu9yWIVucYV2IvDx7qvEn89YKdImHKU",
+    authDomain: "cyberlab-c7b35.firebaseapp.com",
+    projectId: "cyberlab-c7b35",
+    storageBucket: "cyberlab-c7b35.firebasestorage.app",
+    messagingSenderId: "1096932271929",
+    appId: "1:1096932271929:web:e8ae4dae3eb5c2dfafaae8"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const APP_UID = "cloudcore-v10-final";
+
+let currentFolder = 'root';
+let deleteId = null;
+let totalCloudFiles = 0;
+let cacheCount = 0;
+let aiLinesCount = 0;
+
+// System Data (static fake files)
+const SYSTEM_DATA = {
+    'root': [
+        { name: 'bin_kernel', type: 'folder' },
+        { name: 'etc_config', type: 'folder' },
+        { name: 'var_logs', type: 'folder' },
+        { name: 'models_ai', type: 'folder' },
+        { name: 'catch', type: 'folder', special: true },
+        { name: '.env.prod', type: 'file', size: '1.2 KB' },
+        { name: 'deploy_config.yaml', type: 'file', size: '3.1 KB' },
+        { name: 'runtime_manifest.json', type: 'file', size: '8.4 KB' },
+        ...Array.from({length: 28}).map((_, i) => ({ name: `system_lib_${i+10}.bin`, type: 'file', size: `${(Math.random()*200+50).toFixed(0)} KB` }))
+    ],
+    'bin_kernel': [
+        { name: 'kernel.img', type: 'file', size: '12 MB' },
+        { name: 'bash.sh', type: 'file', size: '1 MB' },
+        { name: 'init.d', type: 'folder' },
+        { name: 'drivers', type: 'folder' },
+        { name: 'scheduler.bin', type: 'file', size: '4.7 MB' },
+    ],
+    'etc_config': [
+        { name: 'nginx.conf', type: 'file', size: '3.4 KB' },
+        { name: 'security.cfg', type: 'file', size: '1.2 KB' },
+        { name: 'hosts', type: 'file', size: '0.8 KB' },
+        { name: 'ssl', type: 'folder' },
+    ],
+    'var_logs': [
+        { name: 'auth.log', type: 'file', size: '420 KB' },
+        { name: 'sys_error.tmp', type: 'file', size: '2 MB' },
+        { name: 'access_2026.log', type: 'file', size: '9.1 MB' },
+        { name: 'kernel_panic.dmp', type: 'file', size: '18 MB' },
+    ],
+    'models_ai': [
+        { name: 'inference_core.bin', type: 'file', size: '2.4 GB' },
+        { name: 'tokenizer.json', type: 'file', size: '512 KB' },
+        { name: 'embeddings_v3.pt', type: 'file', size: '880 MB' },
+        { name: 'checkpoints', type: 'folder' },
+        { name: 'config_model.yaml', type: 'file', size: '4.2 KB' },
+    ],
+    'catch': [],
+    'init.d': [
+        { name: 'rc.local', type: 'file', size: '0.4 KB' },
+        { name: 'startup.sh', type: 'file', size: '1.1 KB' },
+    ],
+    'drivers': [
+        { name: 'gpu_driver_v4.ko', type: 'file', size: '22 MB' },
+        { name: 'net_eth0.ko', type: 'file', size: '6 MB' },
+    ],
+    'ssl': [
+        { name: 'cert.pem', type: 'file', size: '3.1 KB' },
+        { name: 'privkey.pem', type: 'file', size: '1.7 KB' },
+    ],
+    'checkpoints': [
+        ...Array.from({length: 8}).map((_, i) => ({ name: `ckpt_epoch_${i*10+10}.bin`, type: 'file', size: `${(Math.random()*500+200).toFixed(0)} MB` }))
+    ]
+};
+
+// ===== BOOT ANIMATION =====
+function runBootAnimation() {
+    const steps = ['Mounting volumes...','Loading kernel...','Spawning AI workers...','Syncing cloud...','Verifying nodes...','Ready!'];
+    let prog = 0;
+    let step = 0;
+    const timer = setInterval(() => {
+        prog += Math.random() * 2.5;
+        if(prog > 100) prog = 100;
+        document.getElementById('reset-bar').style.width = prog + '%';
+        document.getElementById('reset-percent').innerText = Math.floor(prog) + '%';
+        if(step < steps.length - 1 && prog > (step + 1) * 16) {
+            step++;
+            document.getElementById('reset-status').innerText = steps[step];
+        }
+        if(prog >= 100) {
+            clearInterval(timer);
+            setTimeout(() => {
+                document.getElementById('reset-screen').style.display = 'none';
+                document.getElementById('dashboard-screen').classList.remove('hidden');
+                document.getElementById('dashboard-screen').style.display = 'flex';
+                syncExplorer();
+                processAutoCatch();
+                initAILog();
+                updateStats();
+            }, 600);
+        }
+    }, 60);
+}
+runBootAnimation();
+
+// ===== VIEW SWITCHING =====
+function showView(v) {
+    document.getElementById('view-explorer').style.display = (v === 'explorer') ? 'block' : 'none';
+    document.getElementById('view-logs').style.display = (v === 'logs') ? 'block' : 'none';
+    ['btn-root','btn-catch','btn-logs'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.classList.remove('active');
+    });
+    if(v === 'logs') document.getElementById('btn-logs').classList.add('active');
+    document.getElementById('view-title').innerText = v === 'logs' ? 'AI Code Log' : 'File Explorer';
+    document.getElementById('path-label').innerText = v === 'logs' ? 'ai-log' : currentFolder;
+}
+
+// ===== EXPLORER =====
+function syncExplorer() {
+    showView('explorer');
+    const grid = document.getElementById('explorer-grid');
+    grid.innerHTML = '';
+    document.getElementById('path-label').innerText = currentFolder;
+    document.getElementById('explorer-title').innerText = currentFolder.charAt(0).toUpperCase() + currentFolder.slice(1).replace(/_/g,' ');
+    document.getElementById('back-btn').style.display = currentFolder === 'root' ? 'none' : 'block';
+
+    const items = SYSTEM_DATA[currentFolder] || [];
+    items.forEach(item => addItemRow(item.name, item.size || '--', item.type, null, item.special));
+
+    if(currentFolder === 'catch' || currentFolder === 'root') {
+        db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files")
+        .where("folder", "==", currentFolder)
+        .onSnapshot(snap => {
+            document.querySelectorAll('.cloud-row').forEach(el => el.remove());
+            let count = 0;
+            snap.forEach(doc => {
+                const f = doc.data();
+                addItemRow(f.name, f.size, f.type || 'file', doc.id);
+                count++;
+            });
+            if(currentFolder === 'catch') {
+                cacheCount = count;
+                document.getElementById('stat-cache').innerText = count;
+            }
+            totalCloudFiles = count;
+            updateStats();
+        });
+    }
+}
+
+function addItemRow(name, size, type, id, special) {
+    const grid = document.getElementById('explorer-grid');
+    const row = document.createElement('div');
+    row.className = 'file-row' + (id ? ' cloud-row' : '');
+
+    let iconClass = type === 'folder' ? (special ? 'folder special' : 'folder') : 'file';
+    let iconEl = type === 'folder'
+        ? `<i class="fas fa-folder"></i>`
+        : `<i class="fas fa-file-alt"></i>`;
+
+    const clickAttr = type === 'folder' ? `style="cursor:pointer;" onclick="navigateTo('${name}')"` : '';
+
+    const action = id
+        ? `<button class="del-btn" onclick="openDeleteModal('${id}')"><i class="fas fa-trash-alt"></i></button>`
+        : `<i class="fas fa-lock" style="font-size:9px;color:rgba(255,255,255,0.08);"></i>`;
+
+    row.innerHTML = `
+        <div class="flex items-center gap-3" ${clickAttr}>
+            <div class="file-icon ${iconClass}">${iconEl}</div>
+            <div style="overflow:hidden;">
+                <p style="font-size:12px;font-weight:700;color:${special?'var(--accent)':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</p>
+                <p style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;font-weight:700;text-transform:uppercase;">${size} ${id?'· CLOUD':'· SYS'}</p>
+            </div>
+        </div>
+        <div>${action}</div>
+    `;
+    grid.appendChild(row);
+}
+
+function navigateTo(p) {
+    currentFolder = p;
+    document.getElementById('btn-root').classList.toggle('active', p === 'root');
+    document.getElementById('btn-catch').classList.toggle('active', p === 'catch');
+    document.getElementById('btn-logs').classList.remove('active');
+    syncExplorer();
+}
+function goBack() { navigateTo('root'); }
+function triggerUpload() { document.getElementById('file-picker').click(); }
+
+async function uploadToCloud(e) {
+    const f = e.target.files[0];
+    if(!f) return;
+    await db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files").add({
+        name: f.name,
+        size: (f.size/1024).toFixed(1)+' KB',
+        folder: currentFolder,
+        type: 'file'
+    });
+}
+
+function openDeleteModal(id) {
+    deleteId = id;
+    document.getElementById('delete-modal').style.display = 'flex';
+}
+function closeDeleteModal() {
+    document.getElementById('delete-modal').style.display = 'none';
+}
+document.getElementById('confirm-delete').onclick = async () => {
+    if(deleteId) {
+        await db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files").doc(deleteId).delete();
+        closeDeleteModal();
+    }
+};
+
+// ===== AUTO-CACHE: 20 files/hour =====
+async function processAutoCatch() {
+    const metaRef = db.collection("artifacts").doc(APP_UID).collection("public").doc("meta");
+    const snap = await metaRef.get();
+    const now = Date.now();
+    const oneHour = 3600000;
+    const perHour = 20;
+
+    if(!snap.exists || (now - snap.data().lastUpdate > oneHour)) {
+        const diff = snap.exists ? Math.floor((now - snap.data().lastUpdate) / oneHour) : 1;
+        const total = diff * perHour;
+        const types = ['packet','session','inference','stream','handshake','auth_token','model_out','env_var'];
+        for(let i = 0; i < total; i++) {
+            const t = types[Math.floor(Math.random()*types.length)];
+            const rand = Math.floor(Math.random()*999999);
+            await db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files").add({
+                name: `cache_${t}_${rand}.tmp`,
+                size: (Math.random()*10+0.5).toFixed(1)+' KB',
+                folder: 'catch',
+                type: 'file'
+            });
+        }
+        await metaRef.set({ lastUpdate: now });
+    }
+}
+
+// ===== AI CODE LOG: 30 lines/hour =====
+const CODE_TEMPLATES = [
+    (n,r) => `<span class="kw">const</span> model_${n} = <span class="fn">loadModel</span>(<span class="str">"inference_core_v${r}.bin"</span>);`,
+    (n,r) => `<span class="kw">async function</span> <span class="fn">runInference_${n}</span>(input) { <span class="kw">return await</span> model.predict(input, { temp: ${r} }); }`,
+    (n,r) => `<span class="cm">// [AUTO] epoch_${n} loss=${r} acc=${(Math.random()).toFixed(4)}</span>`,
+    (n,r) => `scheduler.<span class="fn">dispatch</span>(<span class="str">"task_${n}"</span>, { priority: ${r}, ttl: 3600 });`,
+    (n,r) => `<span class="kw">if</span> (cache_${n}.<span class="fn">isFull</span>()) { cache_${n}.<span class="fn">flush</span>(); <span class="fn">log</span>(<span class="str">"flushed_${r}"</span>); }`,
+    (n,r) => `db.<span class="fn">insert</span>(<span class="str">"artifacts"</span>, { id: <span class="str">"${n}"</span>, ts: ${r}, status: <span class="str">"ok"</span> });`,
+    (n,r) => `<span class="kw">const</span> token_${n} = crypto.<span class="fn">randomBytes</span>(32).<span class="fn">toString</span>(<span class="str">"hex"</span>); <span class="cm">// ttl=${r}s</span>`,
+    (n,r) => `pipeline_${n}.<span class="fn">addStage</span>({ op: <span class="str">"normalize"</span>, gain: ${r}, bias: 0.${Math.floor(Math.random()*99+1)} });`,
+    (n,r) => `<span class="kw">export const</span> CONFIG_${n.toUpperCase()} = { endpoint: <span class="str">"/api/v${r}"</span>, timeout: 5000 };`,
+    (n,r) => `stream_${n}.<span class="fn">pipe</span>(encoder).<span class="fn">pipe</span>(compressor).<span class="fn">write</span>(<span class="str">"chunk_${r}"</span>);`,
+    (n,r) => `<span class="cm">// [WARN] node_${n}: latency=${r}ms exceeds SLA threshold 200ms</span>`,
+    (n,r) => `worker_${n}.<span class="fn">postMessage</span>({ cmd: <span class="str">"inference"</span>, payload: tensor_${r} });`,
+];
+
+let logLineCount = 0;
+
+async function initAILog() {
+    const logRef = db.collection("artifacts").doc(APP_UID).collection("public").doc("ailog");
+    const snap = await logRef.get();
+    const now = Date.now();
+    const oneHour = 3600000;
+
+    if(!snap.exists || (now - snap.data().lastUpdate > oneHour)) {
+        const diff = snap.exists ? Math.floor((now - snap.data().lastUpdate) / oneHour) : 1;
+        const newLines = diff * 30;
+        const existing = snap.exists ? (snap.data().lines || []) : [];
+        const added = [];
+        for(let i = 0; i < newLines; i++) {
+            const tmpl = CODE_TEMPLATES[Math.floor(Math.random()*CODE_TEMPLATES.length)];
+            const n = Math.random().toString(36).slice(2,7);
+            const r = (Math.random()*9+1).toFixed(2);
+            added.push(tmpl(n,r));
+        }
+        const allLines = [...existing, ...added].slice(-300);
+        await logRef.set({ lines: allLines, lastUpdate: now });
+        renderLogLines(allLines);
+        logLineCount = allLines.length;
+        document.getElementById('stat-lines').innerText = logLineCount;
+    } else {
+        const lines = snap.data().lines || [];
+        renderLogLines(lines);
+        logLineCount = lines.length;
+        document.getElementById('stat-lines').innerText = logLineCount;
+    }
+}
+
+function renderLogLines(lines) {
+    const area = document.getElementById('code-log-area');
+    area.innerHTML = lines.map((l, i) =>
+        `<div><span class="line-num">${String(i+1).padStart(3,'0')}</span>${l}</div>`
+    ).join('');
+    area.scrollTop = area.scrollHeight;
+}
+
+// ===== STATS =====
+function updateStats() {
+    const sysFiles = Object.values(SYSTEM_DATA).flat().filter(f => f.type === 'file').length;
+    document.getElementById('stat-files').innerText = sysFiles + totalCloudFiles;
+}
+
+// Sidebar nav for logs button
+document.getElementById('btn-logs').addEventListener('click', function() {
+    this.classList.add('active');
+    document.getElementById('btn-root').classList.remove('active');
+    document.getElementById('btn-catch').classList.remove('active');
+    showView('logs');
+});
+</script>
+</body>
+</html>
