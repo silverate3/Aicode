@@ -719,27 +719,20 @@ try {
       appId:"1:1096932271929:web:e8ae4dae3eb5c2dfafaae8"
     });
     db = firebase.firestore();
-    // Verify real connectivity with a test write before marking ready
-    db.collection("artifacts").doc(APP_UID).collection("public").doc("ping")
-      .set({ts: Date.now()}, {merge:true})
-      .then(()=>{
-        firebaseReady = true;
-        const el=document.getElementById('fb-status');
-        if(el){el.innerText='✓ Online';el.style.color='#34c97a';}
-        syncLocalToFirebase();
-      })
-      .catch(err=>{ console.warn('Firebase write test failed:',err); firebaseReady=false; });
+    firebaseReady = true;
   }
 } catch(e){ console.warn('Firebase init failed:', e); }
 
+// Called once after first successful onSnapshot — uploads local-only files to Firebase
+let _syncedOnce = false;
 async function syncLocalToFirebase(){
+  if(_syncedOnce) return; _syncedOnce = true;
   const locals = LOCAL_CLOUD.filter(f=>f.id&&f.id.startsWith('l_'));
   if(!locals.length) return;
   const colRef=db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files");
   for(const f of locals){
-    try{
-      await colRef.add({name:f.name,size:f.size,folder:f.folder,type:f.type||'file'});
-    }catch(e){ return; }
+    try{ await colRef.add({name:f.name,size:f.size,folder:f.folder,type:f.type||'file'}); }
+    catch(e){ _syncedOnce=false; return; }
   }
   LOCAL_CLOUD=LOCAL_CLOUD.filter(f=>!(f.id&&f.id.startsWith('l_')));
   saveLocal();
@@ -1030,6 +1023,7 @@ function syncExplorer(){
         _unsubSnapshot=db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files")
           .where("folder","==",currentFolder)
           .onSnapshot(snap=>{
+            syncLocalToFirebase();
             document.querySelectorAll('.cloud-file-row').forEach(el=>el.remove());
             let cnt=0;
             snap.forEach(doc=>{ addItemRow(doc.data().name,doc.data().size,doc.data().type||'file',doc.id); cnt++; });
