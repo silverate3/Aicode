@@ -689,6 +689,7 @@ body{background:#000;color:#fff;font-family:'Barlow',sans-serif;font-weight:300;
 // FIREBASE SETUP
 // ===========================
 let db = null, firebaseReady = false;
+let _unsubSnapshot = null;
 const APP_UID = "cloudcore-v10-final";
 
 let LOCAL_CLOUD = [];
@@ -718,9 +719,31 @@ try {
       appId:"1:1096932271929:web:e8ae4dae3eb5c2dfafaae8"
     });
     db = firebase.firestore();
-    firebaseReady = true;
+    // Verify real connectivity with a test write before marking ready
+    db.collection("artifacts").doc(APP_UID).collection("public").doc("ping")
+      .set({ts: Date.now()}, {merge:true})
+      .then(()=>{
+        firebaseReady = true;
+        const el=document.getElementById('fb-status');
+        if(el){el.innerText='✓ Online';el.style.color='#34c97a';}
+        syncLocalToFirebase();
+      })
+      .catch(err=>{ console.warn('Firebase write test failed:',err); firebaseReady=false; });
   }
 } catch(e){ console.warn('Firebase init failed:', e); }
+
+async function syncLocalToFirebase(){
+  const locals = LOCAL_CLOUD.filter(f=>f.id&&f.id.startsWith('l_'));
+  if(!locals.length) return;
+  const colRef=db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files");
+  for(const f of locals){
+    try{
+      await colRef.add({name:f.name,size:f.size,folder:f.folder,type:f.type||'file'});
+    }catch(e){ return; }
+  }
+  LOCAL_CLOUD=LOCAL_CLOUD.filter(f=>!(f.id&&f.id.startsWith('l_')));
+  saveLocal();
+}
 
 // ===========================
 // PARTICLES
@@ -1003,7 +1026,8 @@ function syncExplorer(){
   if(currentFolder==='catch'||currentFolder==='root'){
     if(firebaseReady){
       try{
-        db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files")
+        if(_unsubSnapshot){ _unsubSnapshot(); _unsubSnapshot=null; }
+        _unsubSnapshot=db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files")
           .where("folder","==",currentFolder)
           .onSnapshot(snap=>{
             document.querySelectorAll('.cloud-file-row').forEach(el=>el.remove());
@@ -1011,7 +1035,7 @@ function syncExplorer(){
             snap.forEach(doc=>{ addItemRow(doc.data().name,doc.data().size,doc.data().type||'file',doc.id); cnt++; });
             if(currentFolder==='catch'){ cacheCount=cnt; animateCounter(document.getElementById('stat-cache'),cnt); }
             totalCloudFiles=cnt; updateStats();
-          }, ()=>{ firebaseReady=false; renderLocalCloud(); });
+          }, ()=>{ firebaseReady=false; _unsubSnapshot=null; renderLocalCloud(); });
       }catch(e){ firebaseReady=false; renderLocalCloud(); }
     } else renderLocalCloud();
   }
