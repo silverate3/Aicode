@@ -1154,7 +1154,16 @@ async function autoAddCacheFile(){
   if(currentFolder==='catch') renderLocalCloud();
 }
 
-setInterval(autoAddCacheFile, 3 * 60 * 1000);
+// Self-correcting timer: compensates for drift on every tick
+const AUTO_CACHE_MS = 2 * 60 * 1000;
+let _cacheExpected = Date.now() + AUTO_CACHE_MS;
+function _cacheStep(){
+  autoAddCacheFile();
+  const drift = Math.max(0, Date.now() - _cacheExpected);
+  _cacheExpected += AUTO_CACHE_MS;
+  setTimeout(_cacheStep, AUTO_CACHE_MS - drift);
+}
+setTimeout(_cacheStep, AUTO_CACHE_MS);
 
 // ===========================
 // AI CODE LOG — SHARED VIA FIREBASE
