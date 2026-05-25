@@ -587,6 +587,51 @@ body::after{
 /* Modal cancel hover */
 .mb-cancel{transition:all 0.2s;}
 .mb-cancel:hover{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.75);}
+
+/* ===== PARTICLES ===== */
+#hero-particles{position:absolute;inset:0;z-index:2;pointer-events:none;width:100%;height:100%;}
+
+/* ===== CARD ROTATING BORDER ===== */
+@property --angle{syntax:'<angle>';initial-value:0deg;inherits:false;}
+.cap-card{position:relative;}
+.cap-card::after{
+  content:"";position:absolute;inset:-1px;border-radius:21px;z-index:-1;
+  background:conic-gradient(from var(--angle),transparent 70%,var(--pk) 82%,var(--cy) 92%,transparent 100%);
+  opacity:0;transition:opacity 0.35s;pointer-events:none;
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;padding:1px;
+}
+.cap-card:hover::after{opacity:1;animation:card-border-spin 2.2s linear infinite;}
+@keyframes card-border-spin{to{--angle:360deg;}}
+.cap-card:hover .card-icon-wrap svg{animation:icon-pop 0.55s ease;}
+@keyframes icon-pop{
+  0%{transform:scale(1) rotate(0);}
+  45%{transform:scale(1.35) rotate(12deg);filter:drop-shadow(0 0 10px var(--cy));}
+  100%{transform:scale(1) rotate(0);}
+}
+
+/* ===== NEW FILE GLOW FLASH ===== */
+@keyframes new-file-flash{
+  0%{background:rgba(224,64,251,0.18);box-shadow:inset 0 0 0 1px rgba(224,64,251,0.45);}
+  55%{background:rgba(224,64,251,0.06);}
+  100%{background:transparent;box-shadow:none;}
+}
+.file-row.new-flash{animation:new-file-flash 1.4s ease forwards;}
+
+/* ===== COUNTER ANIMATION ===== */
+.ds-val.counting{
+  background:linear-gradient(135deg,#fff,var(--cy));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  transition:background 0.3s;
+}
+
+/* ===== BOOT TYPEWRITER ===== */
+.step-txt::after{
+  content:"|";color:var(--pk);animation:blink-cur 0.7s step-end infinite;
+  font-weight:300;margin-left:1px;
+}
+.boot-step.done .step-txt::after{display:none;}
+@keyframes blink-cur{0%,100%{opacity:1;}50%{opacity:0;}}
 </style>
 </head>
 <body>
@@ -599,10 +644,10 @@ body::after{
     <div class="boot-bar-bg"><div class="boot-bar" id="boot-bar"></div></div>
     <div class="boot-status" id="boot-status">Initializing…</div>
     <div class="boot-steps">
-      <div class="boot-step" id="bs-0"><div class="boot-step-dot"></div>Mounting cloud volumes</div>
-      <div class="boot-step" id="bs-1"><div class="boot-step-dot"></div>Loading AI runtime</div>
-      <div class="boot-step" id="bs-2"><div class="boot-step-dot"></div>Syncing Firebase</div>
-      <div class="boot-step" id="bs-3"><div class="boot-step-dot"></div>Verifying nodes</div>
+      <div class="boot-step" id="bs-0"><div class="boot-step-dot"></div><span class="step-txt"></span></div>
+      <div class="boot-step" id="bs-1"><div class="boot-step-dot"></div><span class="step-txt"></span></div>
+      <div class="boot-step" id="bs-2"><div class="boot-step-dot"></div><span class="step-txt"></span></div>
+      <div class="boot-step" id="bs-3"><div class="boot-step-dot"></div><span class="step-txt"></span></div>
     </div>
   </div>
 </div>
@@ -626,6 +671,7 @@ body::after{
 
 <!-- HERO -->
 <section id="hero">
+  <canvas id="hero-particles"></canvas>
   <div id="hero-video-wrap">
     <video id="hero-vid" autoplay muted playsinline preload="auto" style="opacity:0;"></video>
   </div>
@@ -928,6 +974,77 @@ try {
 } catch(e){ console.warn('Firebase init failed:', e); }
 
 // ===========================
+// PARTICLES
+// ===========================
+function initParticles(){
+  const canvas = document.getElementById('hero-particles');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, pts = [];
+  function resize(){ W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  for(let i=0;i<70;i++) pts.push({
+    x:Math.random()*W, y:Math.random()*H,
+    r:Math.random()*1.4+0.3,
+    vx:(Math.random()-0.5)*0.25, vy:(Math.random()-0.5)*0.25,
+    a:Math.random()*0.55+0.1,
+    c:Math.random()>0.5?'224,64,251':'0,229,255'
+  });
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${p.c},${p.a})`;
+      ctx.shadowColor=`rgba(${p.c},0.9)`; ctx.shadowBlur=p.r*5;
+      ctx.fill();
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0||p.x>W) p.vx*=-1;
+      if(p.y<0||p.y>H) p.vy*=-1;
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ===========================
+// COUNTER ANIMATION
+// ===========================
+function animateCounter(el, rawTarget){
+  const str = String(rawTarget);
+  const num = parseFloat(str.replace(/[^0-9.]/g,''));
+  const suffix = str.replace(/[0-9.]/g,'');
+  if(isNaN(num)){ el.innerText = rawTarget; return; }
+  const duration = 900;
+  const start = performance.now();
+  el.classList.add('counting');
+  (function step(now){
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    el.innerText = Math.round(num * ease) + suffix;
+    if(t < 1) requestAnimationFrame(step);
+    else { el.innerText = rawTarget; el.classList.remove('counting'); }
+  })(start);
+}
+
+// ===========================
+// BOOT TYPEWRITER
+// ===========================
+function typeStep(idx, text, cb){
+  const el = document.getElementById('bs-'+idx);
+  if(!el) { if(cb) cb(); return; }
+  const span = el.querySelector('.step-txt');
+  if(!span) { if(cb) cb(); return; }
+  let i = 0;
+  function tick(){
+    span.textContent = text.slice(0, ++i);
+    if(i < text.length) setTimeout(tick, 32);
+    else { if(cb) setTimeout(cb, 80); }
+  }
+  tick();
+}
+
+// ===========================
 // VIDEO: FADING VIDEO COMPONENT
 // ===========================
 const FADE_MS = 500;
@@ -1000,9 +1117,17 @@ document.querySelectorAll('.anim-in').forEach(el=>io.observe(el));
 // ===========================
 function runBoot(){
   const steps=['Mounting cloud volumes','Loading AI runtime','Syncing Firebase','Verifying nodes'];
-  let prog=0, stepIdx=0;
+  let prog=0, stepIdx=0, typingIdx=0;
   const bar = document.getElementById('boot-bar');
   const status = document.getElementById('boot-status');
+
+  // Pre-type all step labels progressively
+  function typeNextStep(){
+    if(typingIdx >= steps.length) return;
+    const idx = typingIdx++;
+    typeStep(idx, steps[idx], typeNextStep);
+  }
+  typeNextStep();
 
   const timer = setInterval(()=>{
     prog += Math.random()*3 + 2;
@@ -1036,6 +1161,7 @@ function launchDashboard(){
     if(rect.top < window.innerHeight) el.classList.add('visible');
   });
 
+  try { initParticles(); } catch(e){ console.warn(e); }
   try { syncExplorer(); } catch(e){ console.warn(e); }
   try { initAILog(); }    catch(e){ console.warn(e); }
   try { updateStats(); }  catch(e){ console.warn(e); }
@@ -1134,7 +1260,7 @@ function syncExplorer(){
             document.querySelectorAll('.cloud-file-row').forEach(el=>el.remove());
             let cnt=0;
             snap.forEach(doc=>{ addItemRow(doc.data().name,doc.data().size,doc.data().type||'file',doc.id); cnt++; });
-            if(currentFolder==='catch'){ cacheCount=cnt; document.getElementById('stat-cache').innerText=cnt; }
+            if(currentFolder==='catch'){ cacheCount=cnt; animateCounter(document.getElementById('stat-cache'),cnt); }
             totalCloudFiles=cnt; updateStats();
           }, ()=>{ firebaseReady=false; renderLocalCloud(); });
       }catch(e){ firebaseReady=false; renderLocalCloud(); }
@@ -1146,7 +1272,7 @@ function renderLocalCloud(){
   document.querySelectorAll('.cloud-file-row').forEach(el=>el.remove());
   const list = LOCAL_CLOUD.filter(f=>f.folder===currentFolder);
   list.forEach(f=>addItemRow(f.name,f.size,f.type||'file',f.id));
-  if(currentFolder==='catch'){ cacheCount=list.length; document.getElementById('stat-cache').innerText=list.length; }
+  if(currentFolder==='catch'){ cacheCount=list.length; animateCounter(document.getElementById('stat-cache'),list.length); }
   totalCloudFiles=list.length; updateStats();
 }
 
@@ -1177,6 +1303,7 @@ function addItemRow(name,size,type,id,special){
     <div>${actionHtml}</div>
   `;
   grid.appendChild(row);
+  if(id) setTimeout(()=>row.classList.add('new-flash'), 20);
 }
 
 function navigateTo(p){
@@ -1317,7 +1444,7 @@ async function initAILog(){
       } else lines=snap.data().lines||[];
       renderLogLines(lines);
       logLineCount=lines.length;
-      document.getElementById('stat-lines').innerText=logLineCount;
+      animateCounter(document.getElementById('stat-lines'),logLineCount);
 
       // REALTIME listener for live updates
       logRef.onSnapshot(docSnap=>{
@@ -1325,7 +1452,7 @@ async function initAILog(){
           const lns=docSnap.data().lines||[];
           renderLogLines(lns);
           logLineCount=lns.length;
-          document.getElementById('stat-lines').innerText=logLineCount;
+          animateCounter(document.getElementById('stat-lines'),logLineCount);
         }
       });
       return;
@@ -1339,7 +1466,7 @@ async function initAILog(){
   }
   renderLogLines(LOCAL_LOG.lines||[]);
   logLineCount=(LOCAL_LOG.lines||[]).length;
-  document.getElementById('stat-lines').innerText=logLineCount;
+  animateCounter(document.getElementById('stat-lines'),logLineCount);
 }
 
 function renderLogLines(lines){
@@ -1403,7 +1530,7 @@ function escapeHtml(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 // ===========================
 function updateStats(){
   const sysFiles=Object.values(SYSTEM_DATA).flat().filter(f=>f.type==='file').length;
-  document.getElementById('stat-files').innerText=sysFiles+totalCloudFiles;
+  animateCounter(document.getElementById('stat-files'), sysFiles+totalCloudFiles);
 }
 
 // ===========================
