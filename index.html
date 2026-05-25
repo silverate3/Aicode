@@ -730,8 +730,8 @@ body{
           AI Code Log
         </button>
         <div class="snav-info">
-          <div class="snav-info-row"><span>Cache / hr</span><span>+20 files</span></div>
-          <div class="snav-info-row"><span>AI lines / hr</span><span>+30 lines</span></div>
+          <div class="snav-info-row"><span>Storage</span><span id="stat-storage">Active</span></div>
+          <div class="snav-info-row"><span>AI Engine</span><span style="color:rgba(255,255,255,0.9)">Running</span></div>
           <div class="snav-info-row" style="margin-bottom:0;"><span>Firebase</span><span id="fb-status">…</span></div>
         </div>
       </aside>
@@ -759,10 +759,10 @@ body{
         <div id="view-logs" style="display:none;">
           <div class="log-toolbar">
             <div class="log-dot"></div>
-            <span class="log-live">Live AI Log · +30 lines / hour</span>
+            <span class="log-live">Live AI Log</span>
           </div>
           <div class="log-input-wrap">
-            <input class="log-input" id="log-input" placeholder="Write your own code line… (visible to everyone)" onkeydown="if(event.key==='Enter')sendLogLine()">
+            <input class="log-input" id="log-input" placeholder="Write your own code line…" onkeydown="if(event.key==='Enter')sendLogLine()">
             <button class="log-send" onclick="sendLogLine()">
               <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               Send
