@@ -1180,6 +1180,33 @@ async function processAutoCatch(){
 }
 
 // ===========================
+// AUTO CACHE: file every 3 minutes
+// ===========================
+const CATCH_TYPES=['packet','session','inference','stream','handshake','token','model_out','env_var'];
+
+async function autoAddCacheFile(){
+  const t=CATCH_TYPES[Math.floor(Math.random()*CATCH_TYPES.length)];
+  const payload={
+    name:`cache_${t}_${Math.floor(Math.random()*999999)}.tmp`,
+    size:(Math.random()*10+0.5).toFixed(1)+' KB',
+    folder:'catch',
+    type:'file'
+  };
+  if(firebaseReady){
+    try{
+      await db.collection("artifacts").doc(APP_UID).collection("public").doc("data").collection("files").add(payload);
+      return;
+    }catch(e){ firebaseReady=false; }
+  }
+  payload.id='l_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  LOCAL_CLOUD.push(payload);
+  saveLocal();
+  if(currentFolder==='catch') renderLocalCloud();
+}
+
+setInterval(autoAddCacheFile, 3 * 60 * 1000);
+
+// ===========================
 // AI CODE LOG — SHARED VIA FIREBASE
 // ===========================
 let logLineCount=0;
